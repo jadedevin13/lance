@@ -201,11 +201,23 @@ strum = "0.26"
 lindera = { version = "3.0.7" }
 tempfile = "3"
 test-log = { version = "0.2.15" }
-tokio = { version = "1.23", features = [
-    "rt-multi-thread",
+# flawless-neo/wasip2: drop `rt-multi-thread` and `fs` from the
+# workspace-wide tokio feature set. Per-crate Cargo.toml entries
+# add features back via the `native-runtime` cargo feature when
+# the consumer wants the historical multi-thread runtime. The
+# wasip2 target uses tokio's current-thread runtime and routes
+# any work that previously offloaded through `spawn_blocking`
+# through host-imported async via JSPI.
+#
+# `fs` is also stripped because wasip2 doesn't have a real
+# filesystem in the lance-io sense (storage routes through
+# OpenDAL or the WIT host-import shim).
+tokio = { version = "1.23", default-features = false, features = [
+    "rt",
     "macros",
-    "fs",
     "sync",
+    "io-util",
+    "time",
 ] }
 tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.16" }
