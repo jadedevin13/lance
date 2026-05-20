@@ -46,9 +46,14 @@ serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 url.workspace = true
-path_abs.workspace = true
 rand.workspace = true
 tempfile.workspace = true
+
+# flawless-neo/wasip2: path_abs 0.5.x uses #![feature(wasip2)] which
+# requires nightly. Gate the dep off wasm; the wasip2 build routes
+# all local path expansion through the WIT host-import shim.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+path_abs.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 io-uring = { workspace = true }

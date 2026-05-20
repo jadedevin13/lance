@@ -380,6 +380,12 @@ pub fn uri_to_url(uri: &str) -> Result<Url> {
     }
 }
 
+// flawless-neo/wasip2: path_abs depends on #![feature(wasip2)] which
+// requires nightly; gate the whole local-fs expand_path helper off
+// wasm. wasip2 builds route storage through the WIT host-import shim
+// (extensions/lancedb/src/object_store_shim.rs in the consuming
+// repo), so local-path expansion never runs.
+#[cfg(not(target_arch = "wasm32"))]
 fn expand_path(str_path: impl AsRef<str>) -> Result<std::path::PathBuf> {
     let str_path = str_path.as_ref();
     let expanded = expand_tilde_path(str_path).unwrap_or_else(|| str_path.into());
@@ -396,6 +402,14 @@ fn expand_path(str_path: impl AsRef<str>) -> Result<std::path::PathBuf> {
     }
 
     Ok(expanded_path)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn expand_path(str_path: impl AsRef<str>) -> Result<std::path::PathBuf> {
+    // wasip2 has no native filesystem to expand against. Return the
+    // input unchanged; the WIT host-import shim handles path
+    // resolution upstream.
+    Ok(std::path::PathBuf::from(str_path.as_ref()))
 }
 
 fn expand_tilde_path(path: &str) -> Option<std::path::PathBuf> {

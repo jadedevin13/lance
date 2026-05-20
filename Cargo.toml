@@ -58,26 +58,31 @@ rust-version = "1.91.0"
 [workspace.dependencies]
 arc-swap = "1.7"
 libc = "0.2.176"
+# flawless-neo/wasip2: every lance-* workspace dep declared with
+# default-features = false so that downstream wasip2 consumers don't
+# transitively re-enable `native-runtime` (and through it `tokio/rt-
+# multi-thread` + `tokio/fs`) just by depending on a sibling crate
+# with default features.
 lance = { version = "=9.1.0-beta.7", path = "./rust/lance", default-features = false }
-lance-arrow = { version = "=9.1.0-beta.7", path = "./rust/lance-arrow" }
-lance-core = { version = "=9.1.0-beta.7", path = "./rust/lance-core" }
-lance-datafusion = { version = "=9.1.0-beta.7", path = "./rust/lance-datafusion" }
-lance-datagen = { version = "=9.1.0-beta.7", path = "./rust/lance-datagen" }
-lance-derive = { version = "=9.1.0-beta.7", path = "./rust/lance-derive" }
-lance-encoding = { version = "=9.1.0-beta.7", path = "./rust/lance-encoding" }
-lance-file = { version = "=9.1.0-beta.7", path = "./rust/lance-file" }
-lance-geo = { version = "=9.1.0-beta.7", path = "./rust/lance-geo" }
-lance-index = { version = "=9.1.0-beta.7", path = "./rust/lance-index" }
-lance-index-core = { version = "=9.1.0-beta.7", path = "./rust/lance-index-core" }
+lance-arrow = { version = "=9.1.0-beta.7", path = "./rust/lance-arrow", default-features = false }
+lance-core = { version = "=9.1.0-beta.7", path = "./rust/lance-core", default-features = false }
+lance-datafusion = { version = "=9.1.0-beta.7", path = "./rust/lance-datafusion", default-features = false }
+lance-datagen = { version = "=9.1.0-beta.7", path = "./rust/lance-datagen", default-features = false }
+lance-derive = { version = "=9.1.0-beta.7", path = "./rust/lance-derive", default-features = false }
+lance-encoding = { version = "=9.1.0-beta.7", path = "./rust/lance-encoding", default-features = false }
+lance-file = { version = "=9.1.0-beta.7", path = "./rust/lance-file", default-features = false }
+lance-geo = { version = "=9.1.0-beta.7", path = "./rust/lance-geo", default-features = false }
+lance-index = { version = "=9.1.0-beta.7", path = "./rust/lance-index", default-features = false }
+lance-index-core = { version = "=9.1.0-beta.7", path = "./rust/lance-index-core", default-features = false }
 lance-io = { version = "=9.1.0-beta.7", path = "./rust/lance-io", default-features = false }
-lance-linalg = { version = "=9.1.0-beta.7", path = "./rust/lance-linalg" }
-lance-namespace = { version = "=9.1.0-beta.7", path = "./rust/lance-namespace" }
-lance-namespace-impls = { version = "=9.1.0-beta.7", path = "./rust/lance-namespace-impls" }
-lance-namespace-datafusion = { version = "=7.0.0-beta.9", path = "./rust/lance-namespace-datafusion" }
+lance-linalg = { version = "=9.1.0-beta.7", path = "./rust/lance-linalg", default-features = false }
+lance-namespace = { version = "=9.1.0-beta.7", path = "./rust/lance-namespace", default-features = false }
+lance-namespace-impls = { version = "=9.1.0-beta.7", path = "./rust/lance-namespace-impls", default-features = false }
+lance-namespace-datafusion = { version = "=7.0.0-beta.9", path = "./rust/lance-namespace-datafusion", default-features = false }
 lance-namespace-reqwest-client = "0.8.6"
-lance-select = { version = "=9.1.0-beta.7", path = "./rust/lance-select" }
-lance-tokenizer = { version = "=9.1.0-beta.7", path = "./rust/lance-tokenizer" }
-lance-table = { version = "=9.1.0-beta.7", path = "./rust/lance-table" }
+lance-select = { version = "=9.1.0-beta.7", path = "./rust/lance-select", default-features = false }
+lance-tokenizer = { version = "=9.1.0-beta.7", path = "./rust/lance-tokenizer", default-features = false }
+lance-table = { version = "=9.1.0-beta.7", path = "./rust/lance-table", default-features = false }
 lance-test-macros = { version = "=9.1.0-beta.7", path = "./rust/lance-test-macros" }
 lance-testing = { version = "=9.1.0-beta.7", path = "./rust/lance-testing" }
 approx = "0.5.1"
@@ -90,7 +95,14 @@ arrow-array = "58.0.0"
 arrow-buffer = "58.0.0"
 arrow-cast = "58.0.0"
 arrow-data = "58.0.0"
-arrow-ipc = { version = "58.0.0", features = ["zstd"] }
+# flawless-neo/wasip2: drop the `zstd` feature from the workspace
+# default arrow-ipc spec. zstd-sys's C build-script fails on
+# wasm32-wasip2 (its bundled libzstd does not target the wasip2
+# triple cleanly through WASI SDK clang, per Unit 0A finding). Lance
+# uses arrow-ipc for IPC frame parsing only; zstd-compressed frames
+# are out of scope for v1 wasip2 — and the native build can re-add
+# the feature on-demand via a downstream override.
+arrow-ipc = { version = "58.0.0", default-features = false }
 arrow-ord = "58.0.0"
 arrow-row = "58.0.0"
 arrow-schema = "58.0.0"
