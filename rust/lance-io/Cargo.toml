@@ -69,7 +69,13 @@ name = "scheduler"
 harness = false
 
 [features]
-default = ["aws", "azure", "gcp"]
+default = ["aws", "azure", "gcp", "native-runtime"]
+# flawless-neo/wasip2: see lance-core/Cargo.toml. The wasip2 build
+# uses --no-default-features --features <minimal-set>; aws/azure/gcp
+# providers are out of scope for v1 wasip2 since storage routes
+# through the WIT host-import shim (extensions/lancedb/src/
+# object_store_shim.rs in the consuming repo).
+native-runtime = ["tokio/rt-multi-thread", "tokio/fs"]
 metrics = ["dep:metrics"]
 gcs-test = []
 goosefs-test = []

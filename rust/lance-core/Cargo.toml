@@ -59,7 +59,13 @@ rstest.workspace = true
 # the backtrace field is zero-sized with no overhead. At runtime, capture
 # is still gated by RUST_BACKTRACE=1.
 backtrace = []
+default = ["native-runtime"]
 datafusion = ["dep:datafusion-common", "dep:datafusion-sql"]
+# flawless-neo/wasip2: opt-in to the historical multi-thread tokio
+# runtime + fs feature. Native builds keep this on by default;
+# wasip2 builds use --no-default-features and the engine runs on
+# current-thread.
+native-runtime = ["tokio/rt-multi-thread", "tokio/fs"]
 
 [lints]
 workspace = true

@@ -58,8 +58,10 @@ prost-build.workspace = true
 protobuf-src = { version = "2.1", optional = true }
 
 [features]
-default = ["lz4", "zstd", "bitpacking"]
+default = ["lz4", "zstd", "bitpacking", "native-runtime"]
 protoc = ["dep:protobuf-src"]
+# flawless-neo/wasip2: see lance-core/Cargo.toml.
+native-runtime = ["tokio/rt-multi-thread", "tokio/fs"]
 bitpacking = ["dep:lance-bitpacking"]
 lz4 = ["dep:lz4"]
 zstd = ["dep:zstd"]
