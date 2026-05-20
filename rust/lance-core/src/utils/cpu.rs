@@ -210,6 +210,14 @@ pub static SIMD_SUPPORT: LazyLock<SimdSupport> = LazyLock::new(|| {
             SimdSupport::None
         }
     }
+    // flawless-neo/wasip2: no SIMD intrinsics on wasm32-wasip2 today.
+    // SIMD128 exists but Lance's hot paths gate on the named families
+    // above, not generic SIMD128. Return None and let the scalar paths
+    // run.
+    #[cfg(target_arch = "wasm32")]
+    {
+        SimdSupport::None
+    }
 });
 
 #[cfg(target_arch = "x86_64")]

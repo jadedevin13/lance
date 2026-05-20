@@ -49,6 +49,14 @@ pub static IO_CORE_RESERVATION: LazyLock<usize> = LazyLock::new(|| {
         .unwrap()
 });
 
+// flawless-neo/wasip2: the wasip2 build runs on the current-thread
+// runtime; new_multi_thread + max_blocking_threads + worker_threads
+// all live on the multi-thread Builder which only compiles with the
+// `rt-multi-thread` tokio feature (gated under `native-runtime` in
+// this crate's Cargo.toml). Under wasip2 a current-thread runtime
+// is used instead and spawn_blocking has no thread pool to land on
+// — see spawn_cpu() below.
+#[cfg(feature = "native-runtime")]
 fn create_runtime() -> Runtime {
     Builder::new_multi_thread()
         .thread_name("lance-cpu")
@@ -56,6 +64,14 @@ fn create_runtime() -> Runtime {
         .worker_threads(1)
         // keep the thread alive "forever"
         .thread_keep_alive(Duration::from_secs(u64::MAX))
+        .build()
+        .unwrap()
+}
+
+#[cfg(not(feature = "native-runtime"))]
+fn create_runtime() -> Runtime {
+    Builder::new_current_thread()
+        .thread_name("lance-cpu")
         .build()
         .unwrap()
 }
@@ -98,12 +114,14 @@ extern "C" fn atfork_tokio_child() {
     RUNTIME_INSTALLED.store(false, Ordering::SeqCst);
 }
 
-#[cfg(not(windows))]
+#[cfg(all(unix, not(target_arch = "wasm32")))]
 fn install_atfork() {
     unsafe { libc::pthread_atfork(None, None, Some(atfork_tokio_child)) };
 }
 
-#[cfg(windows)]
+// flawless-neo/wasip2: wasi single-threaded has no fork(); skip the
+// at-fork hook entirely on wasm32.
+#[cfg(any(windows, target_arch = "wasm32"))]
 fn install_atfork() {}
 
 /// Spawn a CPU intensive task
@@ -161,10 +179,23 @@ pub fn spawn_cpu<
     let (send, recv) = tokio::sync::oneshot::channel();
     // Propagate the current span into the task
     let span = Span::current();
-    global_cpu_runtime().spawn_blocking(move || {
+    // flawless-neo/wasip2: spawn_blocking requires a thread pool and is
+    // unavailable on the single-threaded wasip2 runtime. Run the closure
+    // inline on the current task; the future still drives because send
+    // resolves the oneshot before the function returns.
+    #[cfg(feature = "native-runtime")]
+    {
+        global_cpu_runtime().spawn_blocking(move || {
+            let _span_guard = span.enter();
+            let result = func();
+            let _ = send.send(result);
+        });
+    }
+    #[cfg(not(feature = "native-runtime"))]
+    {
         let _span_guard = span.enter();
         let result = func();
         let _ = send.send(result);
-    });
+    }
     recv.map(|res| res.unwrap())
 }
