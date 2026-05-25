@@ -13,7 +13,16 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use lance_core::Result;
 
-use crate::object_writer::WriteResult;
+// flawless-neo/wasip2: WriteResult is defined here at the traits-module
+// level so the Writer trait signature compiles on wasm even though the
+// object_writer module (with its tokio::fs surface) is gated off wasm.
+// Native callers continue to access it via `crate::object_writer::WriteResult`
+// through the re-export at the bottom of object_writer.rs.
+#[derive(Debug, Clone, Default)]
+pub struct WriteResult {
+    pub size: usize,
+    pub e_tag: Option<String>,
+}
 
 pub trait ProtoStruct {
     type Proto: Message;

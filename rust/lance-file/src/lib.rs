@@ -6,6 +6,9 @@ pub mod format;
 pub(crate) mod io;
 pub mod previous;
 pub mod reader;
+// flawless-neo/wasip2: testing module uses ObjectStore::local() which
+// is gated off wasm. Mirror the gate at the module level.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod testing;
 pub mod writer;
 

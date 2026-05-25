@@ -51,10 +51,15 @@ prost-build.workspace = true
 protobuf-src = { version = "2.1", optional = true }
 
 [features]
-default = ["native-runtime"]
+default = ["native-runtime", "bitpacking"]
 protoc = ["dep:protobuf-src"]
 # flawless-neo/wasip2: see lance-core/Cargo.toml.
 native-runtime = ["tokio/rt-multi-thread", "tokio/fs"]
+# flawless-neo/wasip2: lance-encoding's source references InlineBitpacking
+# + OutOfLineBitpacking unconditionally — propagate the feature
+# through so consumers always get the symbols. Pure-Rust crate, no
+# wasip2 cost.
+bitpacking = ["lance-encoding/bitpacking"]
 
 [package.metadata.docs.rs]
 # docs.rs uses an older version of Ubuntu that does not have the necessary protoc version

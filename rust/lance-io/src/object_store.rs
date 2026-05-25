@@ -27,6 +27,9 @@ use object_store::aws::AwsCredentialProvider;
 #[cfg(any(feature = "aws", feature = "azure", feature = "gcp"))]
 use object_store::{ClientOptions, HeaderMap, HeaderValue};
 use object_store::{ListResult, ObjectMeta, ObjectStore as OSObjectStore, path::Path};
+// flawless-neo/wasip2: FileStoreProvider lives in providers/local.rs
+// which is gated off wasm. Memory provider survives.
+#[cfg(not(target_arch = "wasm32"))]
 use providers::local::FileStoreProvider;
 use providers::memory::MemoryStoreProvider;
 use tokio::io::AsyncWriteExt;
@@ -575,6 +578,12 @@ impl ObjectStore {
     }
 
     /// Local object store.
+    ///
+    /// flawless-neo/wasip2: gated off wasm because FileStoreProvider
+    /// lives in the local-fs provider module. wasip2 builds use
+    /// `ObjectStore::memory()` for tests + the WIT host-import shim
+    /// for production paths.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn local() -> Self {
         let provider = FileStoreProvider;
         provider
@@ -670,6 +679,12 @@ impl ObjectStore {
     /// - ``path``: Absolute path to the file.
     pub async fn open(&self, path: &Path) -> Result<Box<dyn Reader>> {
         match self.scheme.as_str() {
+            // flawless-neo/wasip2: the "file" local-fs arm is gated off wasm
+            // because LocalObjectReader, tokio::fs, etc are not available
+            // on single-threaded wasi. The wasip2 build routes through the
+            // WIT host-import shim which lives behind one of the cloud-
+            // shaped schemes the catch-all CloudObjectReader serves.
+            #[cfg(not(target_arch = "wasm32"))]
             "file" => {
                 LocalObjectReader::open_with_tracker(
                     path,
@@ -732,6 +747,7 @@ impl ObjectStore {
         }
 
         match self.scheme.as_str() {
+            #[cfg(not(target_arch = "wasm32"))]
             "file" => {
                 LocalObjectReader::open_with_tracker(
                     path,
@@ -777,6 +793,9 @@ impl ObjectStore {
     }
 
     /// Create an [ObjectWriter] from local [std::path::Path]
+    ///
+    /// flawless-neo/wasip2: local-fs helpers gated off wasm.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn create_local_writer(path: &std::path::Path) -> Result<ObjectWriter> {
         let object_store = Self::local();
         let absolute_path = expand_path(path.to_string_lossy())?;
@@ -785,6 +804,9 @@ impl ObjectStore {
     }
 
     /// Open an [Reader] from local [std::path::Path]
+    ///
+    /// flawless-neo/wasip2: local-fs helpers gated off wasm.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn open_local(path: &std::path::Path) -> Result<Box<dyn Reader>> {
         let object_store = Self::local();
         let absolute_path = expand_path(path.to_string_lossy())?;
@@ -795,6 +817,7 @@ impl ObjectStore {
     /// Create a new file.
     pub async fn create(&self, path: &Path) -> Result<Box<dyn Writer>> {
         match self.scheme.as_str() {
+            #[cfg(not(target_arch = "wasm32"))]
             "file" => {
                 let local_path = super::local::to_local_path(path);
                 let local_path = std::path::PathBuf::from(&local_path);
@@ -818,11 +841,20 @@ impl ObjectStore {
                     Arc::new(self.io_tracker.clone()),
                 )))
             }
+            #[cfg(not(target_arch = "wasm32"))]
             _ => Ok(Box::new(ObjectWriter::new(self, path).await?)),
+            #[cfg(target_arch = "wasm32")]
+            _ => Err(Error::io(
+                "ObjectStore::create() requires the object_writer module which is gated off wasm; wasip2 builds use the WIT host-import shim instead",
+            )),
         }
     }
 
     /// A helper function to create a file and write content to it.
+    ///
+    /// flawless-neo/wasip2: depends on the gated `WriteResult` from
+    /// the `object_writer` module. Available natively only.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn put(&self, path: &Path, content: &[u8]) -> Result<WriteResult> {
         let mut writer = self.create(path).await?;
         writer.write_all(content).await?;
@@ -838,51 +870,53 @@ impl ObjectStore {
     /// larger than this; such sources are streamed through a multipart write.
     const MAX_SINGLE_COPY_BYTES: u64 = 5 * 1024 * 1024 * 1024; // 5 GiB
 
-    pub async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
-        // S3 and GCS cap single-shot server-side copies at 5 GiB and object_store
-        // does not fall back to a multipart copy for larger sources
-        // (https://github.com/apache/arrow-rs-object-store/issues/563). Azure and
-        // other blob stores don't have this limit, so we only pay for the fallback
-        // (an extra size lookup) on S3 and GCS.
-        let multipart_copy_fallback = matches!(self.scheme.as_str(), "s3" | "s3+ddb" | "gs");
-        self.copy_impl(
-            from,
-            to,
-            multipart_copy_fallback,
-            Self::MAX_SINGLE_COPY_BYTES,
-        )
-        .await
-    }
+	pub async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
+		// S3 and GCS cap single-shot server-side copies at 5 GiB and object_store
+		// does not fall back to a multipart copy for larger sources
+		// (https://github.com/apache/arrow-rs-object-store/issues/563). Azure and
+		// other blob stores don't have this limit, so we only pay for the fallback
+		// (an extra size lookup) on S3 and GCS.
+		let multipart_copy_fallback = matches!(self.scheme.as_str(), "s3" | "s3+ddb" | "gs");
+		self.copy_impl(
+			from,
+			to,
+			multipart_copy_fallback,
+			Self::MAX_SINGLE_COPY_BYTES,
+		)
+		.await
+	}
 
-    /// Copy `from` to `to`. When `multipart_copy_fallback` is set, a source
-    /// larger than `max_single_copy` is streamed through a multipart write
-    /// instead of a single-shot server-side copy. Both are parameters so tests
-    /// can drive the streaming path without a multi-gigabyte fixture or an S3
-    /// endpoint.
-    async fn copy_impl(
-        &self,
-        from: &Path,
-        to: &Path,
-        multipart_copy_fallback: bool,
-        max_single_copy: u64,
-    ) -> Result<()> {
-        if self.is_local() {
-            // Use std::fs::copy for local filesystem to support cross-filesystem copies
-            return super::local::copy_file(from, to);
-        }
-        if multipart_copy_fallback {
-            // Reuse the reader for both the size lookup (a single cached HEAD)
-            // and the streamed copy, avoiding a separate HEAD request.
-            let reader = self.open(from).await?;
-            if reader.size().await? as u64 > max_single_copy {
-                let mut writer = self.create(to).await?;
-                writer.copy_from_reader(reader.as_ref()).await?;
-                Writer::shutdown(writer.as_mut()).await?;
-                return Ok(());
-            }
-        }
-        Ok(self.inner.copy(from, to).await?)
-    }
+	/// Copy `from` to `to`. When `multipart_copy_fallback` is set, a source
+	/// larger than `max_single_copy` is streamed through a multipart write
+	/// instead of a single-shot server-side copy. Both are parameters so tests
+	/// can drive the streaming path without a multi-gigabyte fixture or an S3
+	/// endpoint.
+	async fn copy_impl(
+		&self,
+		from: &Path,
+		to: &Path,
+		multipart_copy_fallback: bool,
+		max_single_copy: u64,
+	) -> Result<()> {
+		// flawless-neo/wasip2: local-fs early-return gated off wasm.
+		#[cfg(not(target_arch = "wasm32"))]
+		if self.is_local() {
+			// Use std::fs::copy for local filesystem to support cross-filesystem copies
+			return super::local::copy_file(from, to);
+		}
+		if multipart_copy_fallback {
+			// Reuse the reader for both the size lookup (a single cached HEAD)
+			// and the streamed copy, avoiding a separate HEAD request.
+			let reader = self.open(from).await?;
+			if reader.size().await? as u64 > max_single_copy {
+				let mut writer = self.create(to).await?;
+				writer.copy_from_reader(reader.as_ref()).await?;
+				Writer::shutdown(writer.as_mut()).await?;
+				return Ok(());
+			}
+		}
+		Ok(self.inner.copy(from, to).await?)
+	}
 
     /// Read a directory (start from base directory) and returns all sub-paths in the directory.
     pub async fn read_dir(&self, dir_path: impl Into<Path>) -> Result<Vec<String>> {
@@ -930,6 +964,7 @@ impl ObjectStore {
         let path = dir_path.into();
         let path = Path::parse(&path)?;
 
+        #[cfg(not(target_arch = "wasm32"))]
         if self.is_local() {
             // The local file system provider needs to delete both files and directories.
             return super::local::remove_dir_all(&path);
@@ -943,6 +978,7 @@ impl ObjectStore {
             .delete_stream(sub_entries)
             .try_collect::<Vec<_>>()
             .await?;
+        #[cfg(not(target_arch = "wasm32"))]
         if self.scheme == "file-object-store" {
             // file-object-store tries to do everything as similarly as possible to the remote
             // object stores. But we still have to delete the directory entries afterwards.

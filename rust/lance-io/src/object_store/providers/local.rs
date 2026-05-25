@@ -7,6 +7,10 @@ use crate::object_store::{
     DEFAULT_LOCAL_BLOCK_SIZE, DEFAULT_LOCAL_IO_PARALLELISM, DEFAULT_MAX_IOP_SIZE, ObjectStore,
     ObjectStoreParams, ObjectStoreProvider, StorageOptions,
 };
+// flawless-neo/wasip2: this entire provider wraps the native filesystem
+// via object_store::local::LocalFileSystem. The mod declaration in
+// providers.rs gates it off wasm via #[cfg(not(target_arch = "wasm32"))].
+
 use lance_core::Error;
 use lance_core::error::Result;
 use object_store::{local::LocalFileSystem, path::Path};

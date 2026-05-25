@@ -100,11 +100,10 @@ pub struct ObjectWriter {
     use_constant_size_upload_parts: bool,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct WriteResult {
-    pub size: usize,
-    pub e_tag: Option<String>,
-}
+// flawless-neo/wasip2: moved to `crate::traits::WriteResult` so the
+// Writer trait signature compiles on wasm. Re-exported here for
+// callers that previously imported via `object_writer::WriteResult`.
+pub use crate::traits::WriteResult;
 
 enum UploadState {
     /// The writer has been opened but no data has been written yet. Will be in

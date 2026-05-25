@@ -28,6 +28,8 @@ pub mod gcp;
 pub mod goosefs;
 #[cfg(feature = "huggingface")]
 pub mod huggingface;
+// flawless-neo/wasip2: gates the local-filesystem provider off wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod local;
 pub mod memory;
 #[cfg(feature = "oss")]
@@ -321,18 +323,24 @@ impl Default for ObjectStoreRegistry {
             "shared-memory".into(),
             Arc::new(shared_memory::SharedMemoryStoreProvider::default()),
         );
-        providers.insert("file".into(), Arc::new(local::FileStoreProvider));
-        // The "file" scheme has special optimized code paths that bypass
-        // the ObjectStore API for better performance. However, this can make it
-        // hard to test when using ObjectStore wrappers, such as IOTrackingStore.
-        // So we provide a "file-object-store" scheme that uses the ObjectStore API.
-        // The specialized code paths are differentiated by the scheme name.
-        providers.insert(
-            "file-object-store".into(),
-            Arc::new(local::FileStoreProvider),
-        );
-        #[cfg(target_os = "linux")]
-        providers.insert("file+uring".into(), Arc::new(local::FileStoreProvider));
+        // flawless-neo/wasip2: file-scheme providers gated off wasm
+        // because providers/local.rs (and its LocalFileSystem dep) is
+        // gated off wasm. wasip2 consumers reach storage via the cloud-
+        // shaped CloudObjectReader path through the WIT host-import shim.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            providers.insert("file".into(), Arc::new(local::FileStoreProvider));
+            // The "file" scheme has special optimized code paths that
+            // bypass the ObjectStore API for better performance. The
+            // "file-object-store" scheme uses the ObjectStore API; the
+            // specialized code paths are differentiated by scheme name.
+            providers.insert(
+                "file-object-store".into(),
+                Arc::new(local::FileStoreProvider),
+            );
+            #[cfg(target_os = "linux")]
+            providers.insert("file+uring".into(), Arc::new(local::FileStoreProvider));
+        }
 
         #[cfg(feature = "aws")]
         {
