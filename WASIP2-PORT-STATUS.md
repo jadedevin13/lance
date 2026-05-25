@@ -6,15 +6,40 @@ Plan: consuming repo's `docs/plans/2026-05-19-002-feat-lancedb-user-owned-schema
 
 ## Per-crate status (wasm32-wasip2)
 
-| Crate | `--no-default-features` | `--no-default-features --features bitpacking` |
-|---|---|---|
-| `lance-arrow` | ✅ clean | — |
-| `lance-core` | ✅ clean | — |
-| `lance-encoding` | ❌ needs `bitpacking` | ✅ clean |
-| `lance-io` | ✅ clean | — |
-| `lance-file` | ✅ clean with `--features bitpacking` | ✅ |
-| `lance-table` | ✅ clean with `--features bitpacking` | ✅ |
-| `lance` (umbrella) | ⏳ blocked on `lance-linalg` (SIMD types f32x8/f64x4 missing on wasm32). lance-linalg drives vector-search hot paths and is in R13 deferral territory — may not be in v1 scope. | ⏳ same |
+| Crate | `--no-default-features` | `--no-default-features --features bitpacking` | Release |
+|---|---|---|---|
+| `lance-arrow` | ✅ clean | — | ✅ |
+| `lance-core` | ✅ clean | — | ✅ |
+| `lance-encoding` | ❌ needs `bitpacking` | ✅ clean | ✅ (32-bit `max_chunk_size` cap landed) |
+| `lance-io` | ✅ clean (release: needs `--no-default-features`, see `namespace` feature note) | — | ✅ |
+| `lance-file` | ✅ clean with `--features bitpacking` | ✅ | ✅ |
+| `lance-table` | ✅ clean with `--features bitpacking` | ✅ | ✅ |
+| `lance` (umbrella) | ⏳ blocked on `lance-linalg` (SIMD types f32x8/f64x4 missing on wasm32). lance-linalg drives vector-search hot paths and is in R13 deferral territory — may not be in v1 scope. | ⏳ same | ⏳ |
+
+## Release build — green as of 2026-05-25
+
+Verified by `cargo component build --target wasm32-wasip2 --release
+--no-default-features --features wasip2-engine` from
+`extensions/lancedb/`:
+
+```
+target/wasm32-wasip1/release/lancedb_wasip2.wasm  66.1K
+```
+
+The two release-only blockers that were resolved:
+
+1. `lance-namespace` transitively pulls `reqwest` + `wasm-streams`
+   (wasm-bindgen target only). Made `lance-namespace` an optional
+   dep behind a new `namespace` feature in `lance-io/Cargo.toml`;
+   default-on for native, off for wasip2. Gated the
+   `LanceNamespaceStorageOptionsProvider` struct + impls in
+   `lance-io/src/object_store/storage_options.rs` and its pub-use
+   re-export in `lance-io/src/object_store.rs`.
+
+2. `lance-encoding/src/encodings/logical/primitive.rs` had a
+   `4 * 1024 * 1024 * 1024` literal that overflowed `usize::MAX`
+   on 32-bit `usize` (wasm32). Cfg-branched to `u32::MAX as usize`
+   on `target_pointer_width = "32"`.
 
 ## Build invocation that works today
 
