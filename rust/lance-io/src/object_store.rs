@@ -32,6 +32,10 @@ use providers::memory::MemoryStoreProvider;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
+// flawless-neo/wasip2: local-fs imports gated off wasm. The wasip2
+// path routes through the WIT host-import shim; LocalObjectReader +
+// LocalWriter are unreachable on wasm.
+#[cfg(not(target_arch = "wasm32"))]
 use super::local::LocalObjectReader;
 #[cfg(target_os = "linux")]
 use crate::uring::{UringCurrentThreadReader, UringReader};
@@ -49,10 +53,13 @@ pub(crate) mod test_utils;
 pub mod throttle;
 mod tracing;
 use crate::object_reader::SmallReader;
-use crate::object_writer::{LocalWriter, WriteResult};
+// flawless-neo/wasip2: object_writer module gated off wasm; cloud
+// readers + the Writer trait import survive.
+#[cfg(not(target_arch = "wasm32"))]
+use crate::object_writer::{LocalWriter, ObjectWriter, WriteResult};
 use crate::traits::{WriteExt, Writer};
 use crate::utils::tracking_store::{IOTracker, IoStats};
-use crate::{object_reader::CloudObjectReader, object_writer::ObjectWriter, traits::Reader};
+use crate::{object_reader::CloudObjectReader, traits::Reader};
 use lance_core::{Error, Result};
 
 // Local disks tend to do fine with a few threads

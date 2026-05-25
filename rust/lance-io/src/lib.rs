@@ -13,9 +13,19 @@ use lance_core::{Error, Result};
 
 pub mod encodings;
 pub mod ffi;
+// flawless-neo/wasip2: the `local` module wraps the native filesystem
+// via tokio::fs + object_store::local; gated off wasm because wasi
+// single-threaded has no equivalent surface and the wasip2 path
+// routes through the WIT host-import shim instead
+// (extensions/lancedb/src/object_store_shim.rs in the consuming repo).
+#[cfg(not(target_arch = "wasm32"))]
 pub mod local;
 pub mod object_reader;
 pub mod object_store;
+// `object_writer` writes through tokio::fs::File for the local
+// backend; the wasip2 path uses the host-import shim, so we gate
+// it off wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod object_writer;
 pub mod scheduler;
 pub mod spill;
