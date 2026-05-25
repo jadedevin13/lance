@@ -12,9 +12,9 @@ Plan: consuming repo's `docs/plans/2026-05-19-002-feat-lancedb-user-owned-schema
 | `lance-core` | ✅ clean | — |
 | `lance-encoding` | ❌ needs `bitpacking` | ✅ clean |
 | `lance-io` | ✅ clean | — |
-| `lance-file` | ⏳ `testing` module gated + bitpacking forwarded; needs ~3 more source gates | ⏳ same |
-| `lance-table` | ⏳ ~6 call-site gates (`ObjectStore::put`, `lance_io::object_writer`, `Path::from_filesystem_path`, `lance_io::local::*`) | ⏳ same |
-| `lance` (umbrella) | ⏳ blocked on lance-table + lance-file clean | ⏳ same |
+| `lance-file` | ✅ clean with `--features bitpacking` | ✅ |
+| `lance-table` | ✅ clean with `--features bitpacking` | ✅ |
+| `lance` (umbrella) | ⏳ blocked on `lance-linalg` (SIMD types f32x8/f64x4 missing on wasm32). lance-linalg drives vector-search hot paths and is in R13 deferral territory — may not be in v1 scope. | ⏳ same |
 
 ## Build invocation that works today
 

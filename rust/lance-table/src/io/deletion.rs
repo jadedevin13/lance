@@ -62,6 +62,11 @@ pub fn relative_deletion_file_path(fragment_id: u64, deletion_file: &DeletionFil
 ///
 /// Returns the deletion file if one was written. If no deletions were present,
 /// returns `Ok(None)`.
+///
+/// flawless-neo/wasip2: uses ObjectStore::put which depends on the
+/// object_writer module gated off wasm. wasm callers route through
+/// the WIT host-import shim's put path instead.
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn write_deletion_file(
     base: &Path,
     fragment_id: u64,

@@ -138,9 +138,12 @@ parquet = { version = "58", default-features = false, features = ["arrow", "asyn
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 [features]
-default = ["aws", "azure", "gcp", "oss", "huggingface", "tencent", "tos", "goosefs", "geo"]
+default = ["aws", "azure", "gcp", "oss", "huggingface", "tencent", "tos", "goosefs", "geo", "bitpacking"]
 backtrace = ["lance-core/backtrace"]
 fp16kernels = ["lance-linalg/fp16kernels"]
+# flawless-neo/wasip2: forward bitpacking to the lance-* crates that
+# require it unconditionally. Pure-Rust dep; no wasip2 cost.
+bitpacking = ["lance-encoding/bitpacking", "lance-file/bitpacking", "lance-table/bitpacking"]
 # Prevent dynamic linking of lzma, which comes from datafusion
 cli = ["dep:clap", "lzma-sys/static"]
 dynamodb = ["lance-table/dynamodb", "dep:aws-sdk-dynamodb"]

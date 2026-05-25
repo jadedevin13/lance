@@ -37,7 +37,13 @@ use futures::{
     stream::BoxStream,
 };
 use lance_file::format::{MAGIC, MAJOR_VERSION, MINOR_VERSION};
-use lance_io::object_writer::{ObjectWriter, WriteResult, get_etag};
+// flawless-neo/wasip2: WriteResult is re-exported from
+// lance_io::traits; ObjectWriter + get_etag live in the
+// object_writer module which is gated off wasm. Use the trait-
+// level WriteResult on both targets; gate the writer types off wasm.
+use lance_io::traits::WriteResult;
+#[cfg(not(target_arch = "wasm32"))]
+use lance_io::object_writer::{ObjectWriter, get_etag};
 use log::warn;
 use object_store::ObjectStoreExt as OSObjectStoreExt;
 use object_store::PutOptions;
@@ -210,6 +216,11 @@ pub type ManifestWriter = for<'a> fn(
 /// Canonical manifest writer; its function item type exactly matches `ManifestWriter`.
 /// Rationale: keep a crate-local writer implementation so call sites can pass this function
 /// directly without non-primitive casts or lifetime coercions.
+///
+/// flawless-neo/wasip2: uses lance_io::object_writer::ObjectWriter
+/// which is gated off wasm. Native callers compile through;
+/// wasm callers should route via the WIT host-import shim.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn write_manifest_file_to_path<'a>(
     object_store: &'a ObjectStore,
     manifest: &'a mut Manifest,
@@ -280,11 +291,18 @@ async fn current_manifest_path(
     object_store: &ObjectStore,
     base: &Path,
 ) -> Result<ManifestLocation> {
+    #[cfg(not(target_arch = "wasm32"))]
     if object_store.is_local() {
         if let Ok(Some(location)) = current_manifest_local(base) {
             return Ok(location);
         }
     } else if uses_version_hint(object_store)
+        && let Some(location) = read_version_hint_and_probe(object_store, base).await
+    {
+        return Ok(location);
+    }
+    #[cfg(target_arch = "wasm32")]
+    if uses_version_hint(object_store)
         && let Some(location) = read_version_hint_and_probe(object_store, base).await
     {
         return Ok(location);
@@ -340,14 +358,28 @@ fn version_hint_path(base: &Path) -> Path {
 /// never affects correctness (readers verify the hinted version and probe
 /// upward from there). It is a no-op for detached versions and for stores that
 /// do not benefit from a hint (see [`uses_version_hint`]).
+///
+/// flawless-neo/wasip2: ObjectStore::put depends on object_writer
+/// gated off wasm. The wasm32 build no-ops this fn entirely so the
+/// fn signature stays available at call sites; callers may still
+/// route the hint write through the WIT host-import shim if they
+/// want hint semantics on wasm.
 pub async fn write_version_hint(object_store: &ObjectStore, base: &Path, version: u64) {
     if is_detached_version(version) || !uses_version_hint(object_store) {
         return;
     }
     let hint_path = version_hint_path(base);
     let content = serde_json::to_vec(&VersionHint { version }).expect("serialize version hint");
+    #[cfg(not(target_arch = "wasm32"))]
     if let Err(e) = object_store.put(&hint_path, content.as_slice()).await {
         warn!("Failed to write version hint file for version {version}: {e}");
+    }
+    // flawless-neo/wasip2: ObjectStore::put is gated off wasm; this
+    // fn no-ops on wasm and the hint write happens through the WIT
+    // host-import shim if needed.
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (hint_path, content);
     }
 }
 
@@ -652,6 +684,11 @@ async fn resolve_version_from_listing(
 // This is an optimized function that searches for the latest manifest. In
 // object_store, list operations lookup metadata for each file listed. This
 // method only gets the metadata for the found latest manifest.
+//
+// flawless-neo/wasip2: uses lance_io::local + Path::from_filesystem_path
+// + get_etag (object_writer) — all gated off wasm. The wasm callers
+// reach manifests via the generic object-store path instead.
+#[cfg(not(target_arch = "wasm32"))]
 fn current_manifest_local(base: &Path) -> std::io::Result<Option<ManifestLocation>> {
     let path = lance_io::local::to_local_path(&base.clone().join(VERSIONS_DIR));
     let entries = std::fs::read_dir(path)?;
