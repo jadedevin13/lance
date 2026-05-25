@@ -4052,6 +4052,9 @@ impl PrimitiveStructuralEncoder {
             }
 
             let chunk_bytes = data_buffer.len() - start_pos;
+            // Upstream beta uses u64 for the large-chunk ceiling
+            // (1 << 31), which also avoids the old usize overflow on
+            // wasm32 where 4GiB exceeds usize::MAX.
             let max_chunk_size = if support_large_chunk {
                 1_u64 << 31 // 28 bits of 8-byte words in u32 metadata
             } else {

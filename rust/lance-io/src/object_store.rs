@@ -95,12 +95,16 @@ pub static DEFAULT_MAX_IOP_SIZE: std::sync::LazyLock<u64> = std::sync::LazyLock:
 pub const DEFAULT_DOWNLOAD_RETRY_COUNT: usize = 3;
 
 pub use providers::{ObjectStoreProvider, ObjectStoreRegistry};
+// flawless-neo/wasip2: re-export of LanceNamespaceStorageOptionsProvider
+// gated behind the `namespace` feature (the type only exists under that
+// feature in storage_options.rs).
 pub use storage_options::{
-    BASE_SCOPED_OPTION_PREFIX, BaseScopedStorageOptionsProvider, EXPIRES_AT_MILLIS_KEY,
-    LanceNamespaceStorageOptionsProvider, REFRESH_OFFSET_MILLIS_KEY, StorageOptionsAccessor,
-    StorageOptionsProvider, has_base_scoped_options, parse_base_scoped_key,
-    resolve_base_scoped_options,
+	BASE_SCOPED_OPTION_PREFIX, BaseScopedStorageOptionsProvider, EXPIRES_AT_MILLIS_KEY,
+	REFRESH_OFFSET_MILLIS_KEY, StorageOptionsAccessor, StorageOptionsProvider,
+	has_base_scoped_options, parse_base_scoped_key, resolve_base_scoped_options,
 };
+#[cfg(feature = "namespace")]
+pub use storage_options::LanceNamespaceStorageOptionsProvider;
 
 #[async_trait]
 pub trait ObjectStoreExt {

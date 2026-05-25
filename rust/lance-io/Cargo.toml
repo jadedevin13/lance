@@ -18,7 +18,13 @@ opendal = { workspace = true, optional = true }
 object_store_opendal = { workspace = true, optional = true }
 lance-arrow.workspace = true
 lance-core.workspace = true
-lance-namespace.workspace = true
+# flawless-neo/wasip2: lance-namespace transitively pulls
+# lance-namespace-reqwest-client → reqwest → wasm-streams, which uses
+# wasm-bindgen (wasm32-unknown-unknown target only — not wasi).
+# Gated behind a `namespace` feature so wasip2 builds opt out;
+# storage_options.rs's lance-namespace consumers are also gated on
+# this feature. Native builds keep the dep on by default.
+lance-namespace = { workspace = true, optional = true }
 arrow = { workspace = true, features = ["ffi"] }
 arrow-arith.workspace = true
 arrow-array.workspace = true
@@ -74,14 +80,19 @@ name = "scheduler"
 harness = false
 
 [features]
-default = ["aws", "azure", "gcp", "native-runtime"]
+default = ["aws", "azure", "gcp", "native-runtime", "namespace"]
 # flawless-neo/wasip2: see lance-core/Cargo.toml. The wasip2 build
 # uses --no-default-features --features <minimal-set>; aws/azure/gcp
-# providers are out of scope for v1 wasip2 since storage routes
-# through the WIT host-import shim (extensions/lancedb/src/
+# providers + namespace are out of scope for v1 wasip2 since storage
+# routes through the WIT host-import shim (extensions/lancedb/src/
 # object_store_shim.rs in the consuming repo).
 native-runtime = ["tokio/rt-multi-thread", "tokio/fs"]
 metrics = ["dep:metrics"]
+# flawless-neo/wasip2: opt-in for the lance-namespace catalog API.
+# Native builds default-on. wasip2 builds skip; the dep pulls
+# lance-namespace-reqwest-client → reqwest → wasm-streams which
+# requires wasm32-unknown-unknown (wasm-bindgen) target, not wasi.
+namespace = ["dep:lance-namespace"]
 gcs-test = []
 goosefs-test = []
 gcp = ["object_store/gcp", "dep:opendal", "opendal/services-gcs", "dep:object_store_opendal"]
