@@ -11,10 +11,10 @@ Plan: consuming repo's `docs/plans/2026-05-19-002-feat-lancedb-user-owned-schema
 | `lance-arrow` | ✅ clean | — |
 | `lance-core` | ✅ clean | — |
 | `lance-encoding` | ❌ needs `bitpacking` | ✅ clean |
-| `lance-io` | ⏳ ~14 remaining cfg-gate sites in `object_store.rs` | ⏳ same |
-| `lance-table` | ⏳ blocked on `lance-io` | ⏳ same |
-| `lance-file` | ⏳ blocked on `lance-io` | ⏳ same |
-| `lance` (umbrella) | ⏳ blocked on `lance-io` + `lance-table` + `lance-file` | ⏳ same |
+| `lance-io` | ✅ clean | — |
+| `lance-file` | ⏳ `testing` module gated + bitpacking forwarded; needs ~3 more source gates | ⏳ same |
+| `lance-table` | ⏳ ~6 call-site gates (`ObjectStore::put`, `lance_io::object_writer`, `Path::from_filesystem_path`, `lance_io::local::*`) | ⏳ same |
+| `lance` (umbrella) | ⏳ blocked on lance-table + lance-file clean | ⏳ same |
 
 ## Build invocation that works today
 
