@@ -28,6 +28,11 @@ pub mod object_store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod object_writer;
 pub mod scheduler;
+// flawless-neo/wasip2: LocalSpillStore uses ObjectStore::local() +
+// Path::from_absolute_path + object_writer::WriteResult — all gated
+// off wasm. Spill is only consumed by lance / lance-datafusion /
+// lance-index (out of v1 wasip2 scope per R13+R14 deferral).
+#[cfg(not(target_arch = "wasm32"))]
 pub mod spill;
 pub mod stream;
 #[cfg(test)]
