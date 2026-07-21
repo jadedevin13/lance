@@ -21,6 +21,7 @@ use lance_core::{Error, Result};
 use tracing::Instrument;
 
 use crate::traits::Writer;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::utils::tracking_store::IOTracker;
 use tokio::runtime::Handle;
 
@@ -52,7 +53,14 @@ fn max_conn_reset_retries() -> u16 {
 /// `EntityTooLarge`, so we clamp `LANCE_INITIAL_UPLOAD_SIZE` one byte
 /// below that threshold to keep the buffer-fills-to-clamp single-PUT
 /// path safe. See lance#6750 for the related txn-file write fix.
+///
+/// flawless-neo/wasip2: on 32-bit usize (wasm32) 5 GiB overflows
+/// usize::MAX; cap to usize::MAX - 1 so single-PUT still works for
+/// the largest buffer wasm can address.
+#[cfg(target_pointer_width = "64")]
 const MAX_UPLOAD_PART_SIZE: usize = 1024 * 1024 * 1024 * 5 - 1;
+#[cfg(target_pointer_width = "32")]
+const MAX_UPLOAD_PART_SIZE: usize = usize::MAX - 1;
 
 /// Clamps a requested upload part size to the valid [5MB, 5GB] range.
 /// Returns the clamped value and whether clamping was necessary.
@@ -514,11 +522,14 @@ impl Writer for ObjectWriter {
     }
 }
 
+// flawless-neo/wasip2: LocalWriter uses tokio::fs + tempfile; native only.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct LocalWriter {
     path: Path,
     state: LocalWriteState,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 enum LocalWriteState {
     Writing(WritingState),
@@ -531,6 +542,7 @@ enum LocalWriteState {
     Poisoned,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct WritingState {
     writer: tokio::io::BufWriter<tokio::fs::File>,
     cursor: usize,
@@ -539,6 +551,7 @@ struct WritingState {
     io_tracker: Arc<IOTracker>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl LocalWriter {
     pub fn new(
         file: tokio::fs::File,
@@ -600,6 +613,7 @@ impl LocalWriter {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl AsyncWrite for LocalWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -673,6 +687,7 @@ impl AsyncWrite for LocalWriter {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[async_trait]
 impl Writer for LocalWriter {
     async fn tell(&mut self) -> Result<usize> {
@@ -700,6 +715,7 @@ impl Writer for LocalWriter {
 }
 
 // Based on object store's implementation.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn get_etag(metadata: &std::fs::Metadata) -> String {
     let inode = get_inode(metadata);
     let size = metadata.len();
@@ -715,12 +731,12 @@ pub fn get_etag(metadata: &std::fs::Metadata) -> String {
     format!("{inode:x}-{mtime:x}-{size:x}")
 }
 
-#[cfg(unix)]
+#[cfg(all(not(target_arch = "wasm32"), unix))]
 fn get_inode(metadata: &std::fs::Metadata) -> u64 {
     std::os::unix::fs::MetadataExt::ino(metadata)
 }
 
-#[cfg(not(unix))]
+#[cfg(all(not(target_arch = "wasm32"), not(unix)))]
 fn get_inode(_metadata: &std::fs::Metadata) -> u64 {
     0
 }
@@ -779,6 +795,7 @@ mod tests {
         object_writer.abort().await;
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_local_writer_shutdown() {
         let tmp = lance_core::utils::tempfile::TempStdDir::default();
@@ -814,6 +831,7 @@ mod tests {
         assert_eq!(stats.written_bytes, data.len() as u64);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_local_writer_drop_cleans_up() {
         let tmp = lance_core::utils::tempfile::TempStdDir::default();
@@ -904,6 +922,7 @@ mod tests {
     /// (exactly 5 GiB, Pucheng's setting) caused a single-PUT of 5 GiB on
     /// shutdown — which S3 rejects with `EntityTooLarge`. After tightening
     /// `MAX_UPLOAD_PART_SIZE` to 5 GiB - 1, raw 5 GiB must clamp DOWN.
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn clamp_initial_upload_size_at_5gib_clamps_down() {
         let exactly_5_gib: usize = 5 * 1024 * 1024 * 1024;

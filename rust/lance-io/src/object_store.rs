@@ -56,10 +56,11 @@ pub(crate) mod test_utils;
 pub mod throttle;
 mod tracing;
 use crate::object_reader::SmallReader;
-// flawless-neo/wasip2: object_writer module gated off wasm; cloud
-// readers + the Writer trait import survive.
+// flawless-neo/wasip2: ObjectWriter is available on wasm; LocalWriter
+// (tokio::fs) stays native-only.
 #[cfg(not(target_arch = "wasm32"))]
-use crate::object_writer::{LocalWriter, ObjectWriter, WriteResult};
+use crate::object_writer::LocalWriter;
+use crate::object_writer::{ObjectWriter, WriteResult};
 use crate::traits::{WriteExt, Writer};
 use crate::utils::tracking_store::{IOTracker, IoStats};
 use crate::{object_reader::CloudObjectReader, traits::Reader};
@@ -845,20 +846,13 @@ impl ObjectStore {
                     Arc::new(self.io_tracker.clone()),
                 )))
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            // Cloud / memory / wit-host: ObjectWriter buffers then put /
+            // multipart via DynObjectStore (works on wasip2).
             _ => Ok(Box::new(ObjectWriter::new(self, path).await?)),
-            #[cfg(target_arch = "wasm32")]
-            _ => Err(Error::io(
-                "ObjectStore::create() requires the object_writer module which is gated off wasm; wasip2 builds use the WIT host-import shim instead",
-            )),
         }
     }
 
     /// A helper function to create a file and write content to it.
-    ///
-    /// flawless-neo/wasip2: depends on the gated `WriteResult` from
-    /// the `object_writer` module. Available natively only.
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn put(&self, path: &Path, content: &[u8]) -> Result<WriteResult> {
         let mut writer = self.create(path).await?;
         writer.write_all(content).await?;

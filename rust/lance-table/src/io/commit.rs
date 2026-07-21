@@ -37,13 +37,10 @@ use futures::{
     stream::BoxStream,
 };
 use lance_file::format::{MAGIC, MAJOR_VERSION, MINOR_VERSION};
-// flawless-neo/wasip2: WriteResult is re-exported from
-// lance_io::traits; ObjectWriter + get_etag live in the
-// object_writer module which is gated off wasm. Use the trait-
-// level WriteResult on both targets; gate the writer types off wasm.
 use lance_io::traits::WriteResult;
+use lance_io::object_writer::ObjectWriter;
 #[cfg(not(target_arch = "wasm32"))]
-use lance_io::object_writer::{ObjectWriter, get_etag};
+use lance_io::object_writer::get_etag;
 use log::warn;
 use object_store::ObjectStoreExt as OSObjectStoreExt;
 use object_store::PutOptions;
@@ -217,10 +214,9 @@ pub type ManifestWriter = for<'a> fn(
 /// Rationale: keep a crate-local writer implementation so call sites can pass this function
 /// directly without non-primitive casts or lifetime coercions.
 ///
-/// flawless-neo/wasip2: uses lance_io::object_writer::ObjectWriter
-/// which is gated off wasm. Native callers compile through;
-/// wasm callers should route via the WIT host-import shim.
-#[cfg(not(target_arch = "wasm32"))]
+/// flawless-neo/wasip2: ObjectWriter is available on wasm (cloud/memory
+/// buffer→put path). Local-fs get_etag helpers for version hints remain
+/// native-only below.
 pub fn write_manifest_file_to_path<'a>(
     object_store: &'a ObjectStore,
     manifest: &'a mut Manifest,

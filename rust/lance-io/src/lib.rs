@@ -22,10 +22,10 @@ pub mod ffi;
 pub mod local;
 pub mod object_reader;
 pub mod object_store;
-// `object_writer` writes through tokio::fs::File for the local
-// backend; the wasip2 path uses the host-import shim, so we gate
-// it off wasm.
-#[cfg(not(target_arch = "wasm32"))]
+// flawless-neo/wasip2: ObjectWriter (cloud/memory buffer→put path) is
+// available on wasm so WitHostObjectStore can back lance-file /
+// lance-table writes. LocalWriter (tokio::fs) stays gated inside
+// object_writer.rs.
 pub mod object_writer;
 pub mod scheduler;
 // flawless-neo/wasip2: LocalSpillStore uses ObjectStore::local() +
